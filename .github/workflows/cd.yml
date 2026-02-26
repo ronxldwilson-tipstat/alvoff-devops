@@ -1,0 +1,69 @@
+name: CD - Deploy to Server
+
+on:
+  workflow_call:
+    inputs:
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+      docker_org:
+        description: 'Docker Hub organization'
+        required: false
+        type: string
+        default: 'tipstatinc'
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+      compose_dir:
+        description: 'Directory containing docker-compose.yml on the server'
+        required: false
+        type: string
+        default: '/root/app'
+      services:
+        description: 'Space-separated list of compose services to restart'
+        required: true
+        type: string
+    secrets:
+      SERVER_IP:
+        required: true
+      SSH_PEM_KEY:
+        required: true
+      SSH_USER:
+        required: false
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER || 'root' }}
+          key: ${{ secrets.SSH_PEM_KEY }}
+          script: |
+            echo "=== Logging into Docker Hub ==="
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+            echo "=== Pulling new image ==="
+            docker pull ${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ inputs.image_tag }}
+            docker pull ${{ inputs.docker_org }}/${{ inputs.repo_name }}:latest
+
+            echo "=== Restarting services ==="
+            cd ${{ inputs.compose_dir }}
+            for service in ${{ inputs.services }}; do
+              echo "Restarting ${service}..."
+              docker compose up -d --no-deps --force-recreate ${service}
+            done
+
+            echo "=== Cleanup old images ==="
+            docker image prune -f
+
+            echo "=== Current running containers ==="
+            docker ps --filter "ancestor=${{ inputs.docker_org }}/${{ inputs.repo_name }}"
