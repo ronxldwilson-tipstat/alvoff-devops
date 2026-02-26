@@ -1,4 +1,4 @@
-name: CD - Deploy to Server
+name: CD - Deploy via Webhook
 
 on:
   workflow_call:
@@ -16,54 +16,37 @@ on:
         description: 'Docker image tag to deploy'
         required: true
         type: string
-      compose_dir:
-        description: 'Directory containing docker-compose.yml on the server'
-        required: false
-        type: string
-        default: '/root/app'
       services:
         description: 'Space-separated list of compose services to restart'
         required: true
         type: string
     secrets:
-      SERVER_IP:
+      DEPLOY_WEBHOOK_URL:
         required: true
-      SSH_PEM_KEY:
-        required: true
-      SSH_USER:
-        required: false
-      DOCKER_USERNAME:
-        required: true
-      DOCKER_PASSWORD:
+      DEPLOY_WEBHOOK_TOKEN:
         required: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SSH_USER || 'root' }}
-          key: ${{ secrets.SSH_PEM_KEY }}
-          script: |
-            echo "=== Logging into Docker Hub ==="
-            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Trigger deployment webhook
+        run: |
+          IMAGE="${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ inputs.image_tag }}"
+          echo "Deploying ${IMAGE}..."
 
-            echo "=== Pulling new image ==="
-            docker pull ${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ inputs.image_tag }}
-            docker pull ${{ inputs.docker_org }}/${{ inputs.repo_name }}:latest
+          HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -d "{\"image\": \"${IMAGE}\", \"services\": \"${{ inputs.services }}\"}")
 
-            echo "=== Restarting services ==="
-            cd ${{ inputs.compose_dir }}
-            for service in ${{ inputs.services }}; do
-              echo "Restarting ${service}..."
-              docker compose up -d --no-deps --force-recreate ${service}
-            done
+          echo "Response status: ${HTTP_STATUS}"
+          cat response.txt
 
-            echo "=== Cleanup old images ==="
-            docker image prune -f
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Deployment failed with status ${HTTP_STATUS}"
+            exit 1
+          fi
 
-            echo "=== Current running containers ==="
-            docker ps --filter "ancestor=${{ inputs.docker_org }}/${{ inputs.repo_name }}"
+          echo "Deployment triggered successfully"

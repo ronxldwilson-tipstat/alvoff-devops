@@ -1,0 +1,22 @@
+[
+  {
+    "id": "deploy",
+    "execute-command": "/etc/webhook/deploy.sh",
+    "command-working-directory": "/app",
+    "response-message": "Deployment triggered",
+    "trigger-rule": {
+      "match": {
+        "type": "value",
+        "value": "CHANGE_THIS_TO_A_SECURE_SECRET",
+        "parameter": {
+          "source": "header",
+          "name": "X-Deploy-Token"
+        }
+      }
+    },
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "image" },
+      { "source": "payload", "name": "services" }
+    ]
+  }
+]
