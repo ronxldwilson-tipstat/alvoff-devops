@@ -72,5 +72,4 @@ jobs:
           tags: |
             ${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ steps.vars.outputs.IMAGE_TAG }}
             ${{ inputs.docker_org }}/${{ inputs.repo_name }}:latest
-          cache-from: type=registry,ref=${{ inputs.docker_org }}/${{ inputs.repo_name }}:latest
-          cache-to: type=inline
+          no-cache: true
