@@ -49,6 +49,20 @@ jobs:
           echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "Image tag: ${SHORT_SHA}"
 
+          # Map environment to API base URL
+          case "${{ inputs.environment }}" in
+            development)
+              echo "API_BASE_URL=https://sourcer.tipstat.com/api-fastapi/api/v1" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "API_BASE_URL=https://staging.alvoff.ai/api-fastapi/api/v1" >> $GITHUB_OUTPUT
+              ;;
+            production)
+              echo "API_BASE_URL=https://alvoff.ai/api-fastapi/api/v1" >> $GITHUB_OUTPUT
+              ;;
+          esac
+          echo "Environment: ${{ inputs.environment }}"
+
       - name: Setup QEMU (for cross-platform builds)
         uses: docker/setup-qemu-action@v3
 
@@ -68,7 +82,7 @@ jobs:
           push: true
           platforms: ${{ inputs.platform }}
           build-args: |
-            VITE_MODE=${{ inputs.environment }}
+            VITE_API_BASE_URL=${{ steps.vars.outputs.API_BASE_URL }}
           tags: |
             ${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ steps.vars.outputs.IMAGE_TAG }}
             ${{ inputs.docker_org }}/${{ inputs.repo_name }}:latest
