@@ -33,7 +33,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
     steps:
