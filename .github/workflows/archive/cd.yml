@@ -1,0 +1,52 @@
+name: CD - Deploy via Webhook
+
+on:
+  workflow_call:
+    inputs:
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+      docker_org:
+        description: 'Docker Hub organization'
+        required: false
+        type: string
+        default: 'tipstatinc'
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+      services:
+        description: 'Space-separated list of compose services to restart'
+        required: true
+        type: string
+    secrets:
+      DEPLOY_WEBHOOK_URL:
+        required: true
+      DEPLOY_WEBHOOK_TOKEN:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deployment webhook
+        run: |
+          IMAGE="${{ inputs.docker_org }}/${{ inputs.repo_name }}:${{ inputs.image_tag }}"
+          echo "Deploying ${IMAGE}..."
+
+          HTTP_STATUS=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -d "{\"image\": \"${IMAGE}\", \"services\": \"${{ inputs.services }}\"}")
+
+          echo "Response status: ${HTTP_STATUS}"
+          cat response.txt
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Deployment failed with status ${HTTP_STATUS}"
+            exit 1
+          fi
+
+          echo "Deployment triggered successfully"
