@@ -33,7 +33,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: arc-ci
     steps:
       - name: Trigger deployment webhook
         run: |
